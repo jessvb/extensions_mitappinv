@@ -14,6 +14,7 @@ import com.google.appinventor.components.runtime.util.MediaUtil;
 import com.google.appinventor.components.runtime.*;
 import java.net.*;
 import java.io.*;
+import org.json.*;
 
 import android.util.Log;
 
@@ -49,7 +50,7 @@ public class SentenceGenerator extends AndroidNonvisibleComponent implements Com
   @SimpleFunction
   public String GetGeneratedText(final String seedText) {
     String generatedStr = "";
-    StringBuffer response = new StringBuffer();
+    StringBuffer responseBuf = new StringBuffer();
     try {
       String encodedSeed = java.net.URLEncoder.encode(seedText, "UTF-8").replaceAll("\\+", "%20");
       URL urlObj = new URL(baseURLString + "?inputText=" + encodedSeed);
@@ -62,8 +63,8 @@ public class SentenceGenerator extends AndroidNonvisibleComponent implements Com
       String inputLine;
 
       while ((inputLine = in.readLine()) != null) {
-        response.append(inputLine);
-        response.append("\n");
+        responseBuf.append(inputLine);
+        responseBuf.append("\n");
       }
       in.close();
       con.disconnect();
@@ -71,9 +72,16 @@ public class SentenceGenerator extends AndroidNonvisibleComponent implements Com
       if (DEBUG) {
         Log.d(LOG_TAG, e.toString());
       }
-      response.append(e.toString());
+      responseBuf.append(e.toString());
+    }
+    String responseString = responseBuf.toString();
+    try {
+      JSONObject jsonObj = new JSONObject(responseString);
+      responseString = jsonObj.getString("generated");
+    } catch (JSONException e) {
+      responseString = e.toString();
     }
 
-    return response.toString();
+    return responseString;
   }
 }
