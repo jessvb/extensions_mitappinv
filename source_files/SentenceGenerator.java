@@ -51,7 +51,8 @@ public class SentenceGenerator extends AndroidNonvisibleComponent implements Com
     String generatedStr = "";
     StringBuffer response = new StringBuffer();
     try {
-      URL urlObj = new URL(baseURLString + "?inputText=" + seedText);
+      String encodedSeed = java.net.URLEncoder.encode(seedText, "UTF-8").replaceAll("\\+", "%20");
+      URL urlObj = new URL(baseURLString + "?inputText=" + encodedSeed);
       HttpURLConnection con = (HttpURLConnection) urlObj.openConnection();
       con.setRequestMethod("GET");
       con.setConnectTimeout(300000);
