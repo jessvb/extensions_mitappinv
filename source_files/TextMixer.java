@@ -11,6 +11,7 @@ import com.google.appinventor.components.annotations.SimpleProperty;
 import com.google.appinventor.components.common.ComponentCategory;
 import com.google.appinventor.components.common.PropertyTypeConstants;
 import com.google.appinventor.components.runtime.util.MediaUtil;
+import com.google.appinventor.components.runtime.util.YailList;
 import com.google.appinventor.components.runtime.*;
 import com.google.appinventor.components.runtime.util.AsynchUtil;
 import com.google.appinventor.components.annotations.SimpleEvent;
@@ -96,12 +97,41 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
           final String responseString = response.toString();
 
           // send everything to GotGeneratedSentence and GotGeneratedSentenceAndTexts:
-          // Dispatch the events:
           activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-              GotGeneratedSentence(responseString);
-              GotGeneratedSentenceAndTexts(responseString);
+              // chop off the warning (if there is one), so it's just the json:
+              String finalSentence = responseString.substring(responseString.indexOf("{"));
+              YailList todoDelme = new YailList();
+              try {
+                JSONObject jsonObj = new JSONObject(finalSentence.toString());
+                // {"tokens": ["hello", "world", "in", "the", "clear", "to", "a", "little",
+                // "<eos>"], "corpora": ["none", "none", "seuss", "seuss", "taylor",
+                // "shakespeare", "seuss", "taylor", "shakespeare"]}
+                finalSentence = "";
+                JSONArray tokenArr = jsonObj.getJSONArray("tokens");
+                // todoDelme = YailList.makeList(jsonArr.toArray()); TODO
+                todoDelme = YailList.makeList(new String[] {"this one", "you two"});
+                for (int i = 0; i < tokenArr.length(); i++) {
+                  // don't add the last <eos>
+                  if (i < tokenArr.length() - 1) {
+                    finalSentence += tokenArr.getString(i);
+                    // add a space between words (if not at end):
+                    if (i < tokenArr.length() - 2) {
+                      finalSentence += " ";
+                    }
+                  }
+                }
+              } catch (JSONException e) {
+                finalSentence = e.toString();
+              }
+              if (responseString.contains("Warning")) {
+                finalSentence += " | Warning: The percentages must add up to one.";
+              }
+
+              // Dispatch the events:
+              GotGeneratedSentence(finalSentence);
+              GotGeneratedSentenceAndTexts(todoDelme, todoDelme);
             }
           });
 
@@ -122,32 +152,7 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
    */
   @SimpleEvent
   public void GotGeneratedSentence(String sentence) {
-    // chop off the warning (if there is one), so it's just the json:
-    String finalSentence = sentence.substring(sentence.indexOf("{"));
-    try {
-      JSONObject jsonObj = new JSONObject(finalSentence.toString());
-      // {"tokens": ["hello", "world", "in", "the", "clear", "to", "a", "little",
-      // "<eos>"], "corpora": ["none", "none", "seuss", "seuss", "taylor",
-      // "shakespeare", "seuss", "taylor", "shakespeare"]}
-      finalSentence = "";
-      JSONArray jsonArr = jsonObj.getJSONArray("tokens");
-      for (int i = 0; i < jsonArr.length(); i++) {
-        // don't add the last <eos>
-        if (i < jsonArr.length() - 1) {
-          finalSentence += jsonArr.getString(i);
-          // add a space between words (if not at end):
-          if (i < jsonArr.length() - 2) {
-            finalSentence += " ";
-          }
-        }
-      }
-    } catch (JSONException e) {
-      finalSentence = e.toString();
-    }
-    if (sentence.contains("Warning")) {
-      finalSentence += " | Warning: The percentages must add up to one.";
-    }
-    EventDispatcher.dispatchEvent(this, "GotGeneratedSentence", finalSentence);
+    EventDispatcher.dispatchEvent(this, "GotGeneratedSentence", sentence);
   }
 
   /**
@@ -155,12 +160,12 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
    * Returns the generated sentence and the text each word came from (e.g., Dr.
    * Seuss, Shakespeare, Taylor Swift corpora).
    *
-   * @param sentence the value that was returned.
+   * @param wordList       the list of words that were returned.
+   * @param textOriginList the list of texts where each word came from.
    */
   @SimpleEvent
-  public void GotGeneratedSentenceAndTexts(String sentence) {
-    // TODO: dispatch two lists
-    EventDispatcher.dispatchEvent(this, "GotGeneratedSentenceAndTexts", sentence);
+  public void GotGeneratedSentenceAndTexts(YailList wordList, YailList textOriginList) {
+    EventDispatcher.dispatchEvent(this, "GotGeneratedSentenceAndTexts", wordList, textOriginList);
   }
 
   /**
