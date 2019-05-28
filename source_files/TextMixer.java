@@ -102,26 +102,35 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
             public void run() {
               // chop off the warning (if there is one), so it's just the json:
               String finalSentence = responseString.substring(responseString.indexOf("{"));
-              YailList todoDelme = new YailList();
+              YailList wordList = new YailList();
+              YailList originList = new YailList();
               try {
                 JSONObject jsonObj = new JSONObject(finalSentence.toString());
                 // {"tokens": ["hello", "world", "in", "the", "clear", "to", "a", "little",
                 // "<eos>"], "corpora": ["none", "none", "seuss", "seuss", "taylor",
                 // "shakespeare", "seuss", "taylor", "shakespeare"]}
+
+                // construct the sentence and list of words
                 finalSentence = "";
-                JSONArray tokenArr = jsonObj.getJSONArray("tokens");
-                // todoDelme = YailList.makeList(jsonArr.toArray()); TODO
-                todoDelme = YailList.makeList(new String[] {"this one", "you two"});
-                for (int i = 0; i < tokenArr.length(); i++) {
-                  // don't add the last <eos>
-                  if (i < tokenArr.length() - 1) {
-                    finalSentence += tokenArr.getString(i);
-                    // add a space between words (if not at end):
-                    if (i < tokenArr.length() - 2) {
-                      finalSentence += " ";
-                    }
+                JSONArray tokenJsonArr = jsonObj.getJSONArray("tokens");
+                String[] tokenArr = new String[tokenJsonArr.length()];
+                for (int i = 0; i < tokenJsonArr.length(); i++) {
+                  tokenArr[i] = tokenJsonArr.getString(i);
+                  // if not <eos>, add to sentence
+                  if (!tokenJsonArr.getString(i).equals("<eos>")) {
+                    finalSentence += tokenJsonArr.getString(i);
+                    finalSentence += " ";
                   }
                 }
+                wordList = YailList.makeList(tokenArr);
+
+                // construct the list of origin texts
+                JSONArray corporaJsonArr = jsonObj.getJSONArray("corpora");
+                String[] originArr = new String[corporaJsonArr.length()];
+                for (int i = 0; i < corporaJsonArr.length(); i++) {
+                  originArr[i] = corporaJsonArr.getString(i);
+                }
+                originList = YailList.makeList(originArr);
               } catch (JSONException e) {
                 finalSentence = e.toString();
               }
@@ -131,7 +140,7 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
 
               // Dispatch the events:
               GotGeneratedSentence(finalSentence);
-              GotGeneratedSentenceAndTexts(todoDelme, todoDelme);
+              GotGeneratedSentenceAndTexts(wordList, originList);
             }
           });
 
