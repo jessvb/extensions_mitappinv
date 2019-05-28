@@ -21,7 +21,7 @@ import org.json.*;
 import android.app.Activity;
 import android.util.Log;
 
-@DesignerComponent(version = TextMixer.VERSION, description = "Generates text using input seed text.", category = ComponentCategory.EXTENSION, nonVisible = true, iconName = "appengine/src/com/google/appinventor/images/TODO.png")
+@DesignerComponent(version = TextMixer.VERSION, description = "Generates text using a seed sentence input and mixing text generation based on Dr. Seuss, Shakespeare, and Taylor Swift.", category = ComponentCategory.EXTENSION, nonVisible = true, iconName = "appengine/src/com/google/appinventor/images/TODO.png")
 @SimpleObject(external = true)
 public class TextMixer extends AndroidNonvisibleComponent implements Component {
   public static final int VERSION = 1;
@@ -46,8 +46,16 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
     activity = container.$context();
   }
 
+  /**
+   * Generate text.
+   * 
+   * @param seedSentence
+   * @param drSeussPercentage
+   * @param taylorSwiftPercentage
+   * @param shakespearePercentage
+   */
   @SimpleFunction
-  public void StartTextGeneration(final String seedText, final float drSeussPercentage,
+  public void StartSentenceGeneration(final String seedSentence, final float drSeussPercentage,
       final float taylorSwiftPercentage, final float shakespearePercentage) {
     // From Web.java:
     AsynchUtil.runAsynchronously(new Runnable() {
@@ -55,9 +63,9 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
       public void run() {
         try {
           // From MediaStore.java:
-          String encodedSeed = java.net.URLEncoder.encode(seedText, "UTF-8").replaceAll("\\+", "%20"); // Unclear if
-                                                                                                       // this is
-                                                                                                       // necessary
+          String encodedSeed = java.net.URLEncoder.encode(seedSentence, "UTF-8").replaceAll("\\+", "%20"); // Unclear if
+          // this is
+          // necessary
           // e.g.,
           // http://appinventor-alexa.csail.mit.edu:3000/?sent=hello%20world&swift=.1&shakes=.1&seuss=.8
           String url = baseURLString + "?sent=" + encodedSeed + "&seuss=" + drSeussPercentage + "&swift="
@@ -85,40 +93,18 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
           }
           in.close();
 
-          String tempResponseString = response.toString().substring(response.toString().indexOf("{"));
-          try {
-            JSONObject jsonObj = new JSONObject(tempResponseString.toString());
-            tempResponseString = "";
-            // {"tokens": ["hello", "world", "in", "the", "clear", "to", "a", "little",
-            // "<eos>"], "corpora": ["none", "none", "seuss", "seuss", "taylor",
-            // "shakespeare", "seuss", "taylor", "shakespeare"]}
-            JSONArray jsonArr = jsonObj.getJSONArray("tokens");
-            for (int i = 0; i < jsonArr.length(); i++) {
-              // don't add the last <eos>
-              if (i < jsonArr.length() - 1) {
-                tempResponseString += jsonArr.getString(i);
-                // add a space between words (if not at end):
-                if (i < jsonArr.length() - 2) {
-                  tempResponseString += " ";
-                }
-              }
-            }
-          } catch (JSONException e) {
-            tempResponseString = e.toString();
-          }
-          if (response.toString().contains("Warning")) {
-            tempResponseString += " | Warning: The percentages must add up to one.";
-          }
-          final String responseString = tempResponseString;
+          final String responseString = response.toString();
 
-          // send sentence to GotGeneratedText:
-          // Dispatch the event.
+          // send everything to GotGeneratedSentence and GotGeneratedSentenceAndTexts:
+          // Dispatch the events:
           activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-              GotGeneratedText(responseString);
+              GotGeneratedSentence(responseString);
+              GotGeneratedSentenceAndTexts(responseString);
             }
           });
+
         } catch (Exception e) {
           Log.e(LOG_TAG, "ERROR_UNABLE_TO_GET", e);
           e.printStackTrace();
@@ -129,13 +115,52 @@ public class TextMixer extends AndroidNonvisibleComponent implements Component {
   }
 
   /**
-   * Indicates that a StartTextGeneration server request has succeeded.
+   * Indicates that a StartSentenceGeneration server request has succeeded.
+   * Returns the generated sentence.
    *
    * @param sentence the value that was returned.
    */
   @SimpleEvent
-  public void GotGeneratedText(String sentence) {
-    EventDispatcher.dispatchEvent(this, "GotGeneratedText", sentence);
+  public void GotGeneratedSentence(String sentence) {
+    // chop off the warning (if there is one), so it's just the json:
+    String finalSentence = sentence.substring(sentence.indexOf("{"));
+    try {
+      JSONObject jsonObj = new JSONObject(finalSentence.toString());
+      // {"tokens": ["hello", "world", "in", "the", "clear", "to", "a", "little",
+      // "<eos>"], "corpora": ["none", "none", "seuss", "seuss", "taylor",
+      // "shakespeare", "seuss", "taylor", "shakespeare"]}
+      finalSentence = "";
+      JSONArray jsonArr = jsonObj.getJSONArray("tokens");
+      for (int i = 0; i < jsonArr.length(); i++) {
+        // don't add the last <eos>
+        if (i < jsonArr.length() - 1) {
+          finalSentence += jsonArr.getString(i);
+          // add a space between words (if not at end):
+          if (i < jsonArr.length() - 2) {
+            finalSentence += " ";
+          }
+        }
+      }
+    } catch (JSONException e) {
+      finalSentence = e.toString();
+    }
+    if (sentence.contains("Warning")) {
+      finalSentence += " | Warning: The percentages must add up to one.";
+    }
+    EventDispatcher.dispatchEvent(this, "GotGeneratedSentence", finalSentence);
+  }
+
+  /**
+   * Indicates that a StartSentenceGeneration server request has succeeded.
+   * Returns the generated sentence and the text each word came from (e.g., Dr.
+   * Seuss, Shakespeare, Taylor Swift corpora).
+   *
+   * @param sentence the value that was returned.
+   */
+  @SimpleEvent
+  public void GotGeneratedSentenceAndTexts(String sentence) {
+    // TODO: dispatch two lists
+    EventDispatcher.dispatchEvent(this, "GotGeneratedSentenceAndTexts", sentence);
   }
 
   /**
